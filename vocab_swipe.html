@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VocabSwipe">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23ff2e63'/><text x='90' y='118' font-size='100' text-anchor='middle' fill='white' font-family='-apple-system' font-weight='800'>V</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23ff2e63'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='-apple-system' font-weight='800'>V</text></svg>">
+<title>VocabSwipe · 单词卡</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: #0a0a0a;
+  color: #fff;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+body {
+  background: radial-gradient(circle at top, #1a1a2e 0%, #0a0a0a 60%);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+/* Header */
+.header {
+  padding: 14px 18px 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+}
+.cat-switch {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.cat-switch:active { transform: scale(0.96); }
+.progress-wrap {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 100px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #ff2e63, #ff8a3d);
+  border-radius: 100px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 0%;
+}
+.menu-btn {
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.menu-btn:active { transform: scale(0.92); }
+
+/* Stats */
+.stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 18px 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+}
+.stat { text-align: center; }
+.stat-num { font-size: 18px; font-weight: 700; color: #fff; display: block; }
+.stat-mastered .stat-num { color: #4ade80; }
+.stat-review .stat-num { color: #fb7185; }
+.stat-new .stat-num { color: #fbbf24; }
+
+/* Card stack */
+.stack {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  perspective: 1200px;
+}
+
+.card {
+  position: absolute;
+  width: 100%;
+  max-width: 380px;
+  height: 100%;
+  max-height: 560px;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06) inset;
+  cursor: grab;
+  user-select: none;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+  will-change: transform;
+}
+.card.dragging { transition: none; cursor: grabbing; }
+.card.flipped .face-front { transform: rotateY(180deg); }
+.card.flipped .face-back { transform: rotateY(360deg); }
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Front */
+.face-front {
+  background: linear-gradient(145deg, #2a2a3e 0%, #1a1a2e 100%);
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  transform: rotateY(0deg);
+}
+.face-front .pos {
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  font-weight: 500;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.face-front .word {
+  font-size: clamp(38px, 9vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+  line-height: 1.1;
+  margin-bottom: 18px;
+  word-break: break-word;
+  background: linear-gradient(180deg, #fff 0%, #c4c4d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.face-front .pron {
+  font-size: 17px;
+  color: rgba(255,255,255,0.55);
+  font-style: italic;
+}
+.face-front .hint {
+  position: absolute;
+  bottom: 24px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.5px;
+}
+
+/* Back */
+.face-back {
+  background: linear-gradient(145deg, #1a2e2a 0%, #0e1a18 100%);
+  transform: rotateY(180deg);
+  padding: 28px 26px;
+  justify-content: flex-start;
+  gap: 14px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.back-word {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2px;
+}
+.back-pron {
+  font-size: 14px;
+  color: rgba(255,255,255,0.45);
+  font-style: italic;
+  margin-bottom: 8px;
+}
+.back-section {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 12px;
+}
+.back-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 6px;
+}
+.back-zh {
+  font-size: 22px;
+  font-weight: 600;
+  color: #4ade80;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.back-en {
+  font-size: 16px;
+  color: rgba(255,255,255,0.85);
+  line-height: 1.4;
+}
+.back-example {
+  font-size: 15px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.5;
+  font-style: italic;
+}
+.back-syn {
+  font-size: 14px;
+  color: #fbbf24;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+/* Swipe indicators on card */
+.swipe-indicator {
+  position: absolute;
+  top: 40px;
+  font-size: 26px;
+  font-weight: 800;
+  padding: 10px 18px;
+  border-radius: 12px;
+  letter-spacing: 2px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.swipe-indicator.left {
+  right: 30px;
+  color: #fb7185;
+  border: 3px solid #fb7185;
+  transform: rotate(15deg);
+}
+.swipe-indicator.right {
+  left: 30px;
+  color: #4ade80;
+  border: 3px solid #4ade80;
+  transform: rotate(-15deg);
+}
+
+/* Bottom action hints */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 32px 18px;
+  gap: 16px;
+}
+.action-btn {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+.action-btn:active { transform: scale(0.88); }
+.action-review {
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+  color: #fff;
+}
+.action-flip {
+  width: 48px; height: 48px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 20px;
+}
+.action-mastered {
+  background: linear-gradient(135deg, #4ade80, #16a34a);
+  color: #fff;
+}
+.action-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}
+.action-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 100;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; animation: fadein 0.2s; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  background: #1c1c1e;
+  width: 100%;
+  max-width: 500px;
+  border-radius: 24px 24px 0 0;
+  padding: 22px 22px 32px;
+  animation: slideup 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes slideup { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.modal-handle {
+  width: 40px; height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+.cat-item {
+  background: rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.cat-item.active {
+  border-color: #ff2e63;
+  background: rgba(255, 46, 99, 0.1);
+}
+.cat-item:active { transform: scale(0.98); }
+.cat-name { font-weight: 600; font-size: 15px; }
+.cat-count { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+.cat-meta { display: flex; flex-direction: column; }
+.cat-progress {
+  font-size: 12px;
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.modal-btn {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 14px;
+  border-radius: 12px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+.modal-btn.primary {
+  background: linear-gradient(135deg, #ff2e63, #ff8a3d);
+  border: none;
+}
+.modal-btn.danger {
+  color: #fb7185;
+}
+.modal-btn:active { transform: scale(0.98); }
+
+textarea {
+  width: 100%;
+  min-height: 140px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #fff;
+  padding: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  resize: vertical;
+  margin-top: 8px;
+}
+input[type="text"] {
+  width: 100%;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #fff;
+  padding: 12px 14px;
+  font-size: 15px;
+  margin-top: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: rgba(255,255,255,0.6);
+}
+.empty-state .emoji { font-size: 56px; margin-bottom: 16px; }
+.empty-state h3 { font-size: 20px; margin-bottom: 8px; color: #fff; }
+.empty-state p { font-size: 14px; line-height: 1.5; }
+
+.toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: 200;
+}
+.toast.show { opacity: 1; }
+
+.help-text {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.5;
+  margin: 8px 0;
+}
+
+/* Word list modal styles */
+.stat[id] { cursor: pointer; }
+.stat[id]:active { transform: scale(0.92); opacity: 0.7; }
+
+.wl-search {
+  width: 100%;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.wl-filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.wl-pill {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+  padding: 6px 12px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wl-pill.active { background: rgba(255,46,99,0.2); border-color: #ff2e63; color: #fff; }
+.wl-count { text-align: center; font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 8px; }
+.wl-list { max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.wl-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.wl-item:active { transform: scale(0.99); }
+.wl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wl-word { font-size: 16px; font-weight: 700; color: #fff; }
+.wl-pos { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; }
+.wl-zh { font-size: 14px; color: #4ade80; margin-left: auto; }
+.wl-badge { font-size: 10px; padding: 2px 8px; border-radius: 100px; font-weight: 600; }
+.wl-badge.mastered { background: rgba(74,222,128,0.15); color: #4ade80; }
+.wl-badge.review { background: rgba(251,113,133,0.15); color: #fb7185; }
+.wl-badge.new { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.wl-detail {
+  display: none;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.wl-item.expanded .wl-detail { display: block; }
+.wl-detail-row { margin-bottom: 6px; }
+.wl-detail-label { color: rgba(255,255,255,0.4); font-size: 10px; font-weight: 700; letter-spacing: 1px; display: block; margin-bottom: 2px; }
+.wl-detail-en { color: rgba(255,255,255,0.85); }
+.wl-detail-ex { color: rgba(255,255,255,0.6); font-style: italic; }
+.wl-detail-syn { color: #fbbf24; font-weight: 500; }
+.wl-actions { display: flex; gap: 8px; margin-top: 10px; }
+.wl-action {
+  flex: 1;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.wl-action.to-review { background: rgba(251,113,133,0.15); border-color: rgba(251,113,133,0.3); color: #fb7185; }
+.wl-action.to-mastered { background: rgba(74,222,128,0.15); border-color: rgba(74,222,128,0.3); color: #4ade80; }
+.wl-action.to-new { background: rgba(251,191,36,0.15); border-color: rgba(251,191,36,0.3); color: #fbbf24; }
+.wl-action:active { transform: scale(0.96); }
+.wl-empty { text-align: center; padding: 40px 16px; color: rgba(255,255,255,0.4); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="cat-switch" id="catSwitch">
+    <span id="catName">ASVAB</span>
+    <span>▾</span>
+  </button>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+  <button class="menu-btn" id="menuBtn">⋯</button>
+</div>
+
+<div class="stats">
+  <div class="stat stat-new" id="statColNew"><span class="stat-num" id="statNew">0</span>未学</div>
+  <div class="stat stat-review" id="statColReview"><span class="stat-num" id="statReview">0</span>复习</div>
+  <div class="stat stat-mastered" id="statColMastered"><span class="stat-num" id="statMastered">0</span>已掌握</div>
+  <div class="stat"><span class="stat-num" id="statTotal">0</span>总数</div>
+</div>
+
+<div class="stack" id="stack"></div>
+
+<div class="actions">
+  <div class="action-col">
+    <button class="action-btn action-review" id="btnReview">✗</button>
+    <div class="action-label">复习</div>
+  </div>
+  <div class="action-col">
+    <button class="action-btn action-flip" id="btnFlip">↺</button>
+    <div class="action-label">翻面</div>
+  </div>
+  <div class="action-col">
+    <button class="action-btn action-mastered" id="btnMastered">✓</button>
+    <div class="action-label">会了</div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>选择词库</h2>
+    <div id="catList"></div>
+    <button class="modal-btn primary" id="btnAddCat">+ 添加新词库 (GRE / SAT 等)</button>
+    <button class="modal-btn" onclick="closeModal('catModal')">关闭</button>
+  </div>
+</div>
+
+<!-- Menu Modal -->
+<div class="modal-overlay" id="menuModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>设置</h2>
+    <button class="modal-btn" id="btnShuffle">🔀 打乱顺序</button>
+    <button class="modal-btn" id="btnResetCard">↶ 重新开始本词库</button>
+    <button class="modal-btn" id="btnReviewOnly">🔄 只看"复习"标记词</button>
+    <button class="modal-btn" id="btnMasteredOnly">🎯 只看"已掌握"自测</button>
+    <button class="modal-btn" id="btnAllCards">📚 看全部单词</button>
+    <button class="modal-btn" id="btnExport">💾 导出进度备份</button>
+    <button class="modal-btn" id="btnImport">📥 导入进度备份</button>
+    <button class="modal-btn danger" id="btnResetAll">⚠️ 清空所有进度</button>
+    <button class="modal-btn" onclick="closeModal('menuModal')">关闭</button>
+  </div>
+</div>
+
+<!-- Add Category Modal -->
+<div class="modal-overlay" id="addCatModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>添加自定义词库</h2>
+    <p class="help-text">输入词库名称（例如 "GRE 核心 1000"），然后贴入 JSON 格式的单词数据。</p>
+    <input type="text" id="newCatName" placeholder="词库名称">
+    <p class="help-text" style="margin-top: 12px;">
+JSON 格式示例（每个单词6个字段）：<br>
+<code style="font-size:11px;color:#4ade80;">[["word","v.","中文","English def","example","synonyms"], ...]</code>
+    </p>
+    <textarea id="newCatData" placeholder='[["abate","v.","减弱","to lessen","The storm abated.","diminish"]]'></textarea>
+    <button class="modal-btn primary" id="btnSaveCat">保存词库</button>
+    <button class="modal-btn" onclick="closeModal('addCatModal')">取消</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>导入/导出 进度</h2>
+    <p class="help-text" id="importHelp">粘贴之前导出的备份 JSON：</p>
+    <textarea id="importData" placeholder='{"progress":{...},"customCats":{...}}'></textarea>
+    <button class="modal-btn primary" id="btnDoImport">导入</button>
+    <button class="modal-btn" onclick="closeModal('importModal')">关闭</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="wordListModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="wlTitle">所有单词</h2>
+    <input type="text" class="wl-search" id="wlSearch" placeholder="🔍 搜索单词或中文...">
+    <div class="wl-filters">
+      <div class="wl-pill" data-filter="all">全部</div>
+      <div class="wl-pill" data-filter="new">未学</div>
+      <div class="wl-pill" data-filter="review">复习</div>
+      <div class="wl-pill" data-filter="mastered">已掌握</div>
+    </div>
+    <div class="wl-count" id="wlCount"></div>
+    <div class="wl-list" id="wlList"></div>
+    <button class="modal-btn" onclick="closeModal('wordListModal')">关闭</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+// ASVAB 200 高频核心词汇 (Word, POS, 中文, English Def, Example, Synonyms)
+// =====================================================================
+const ASVAB_200 = [
+["abate","v.","减弱，减轻","to become less intense","The storm finally abated.","diminish, lessen, subside"],
+["accord","n./v.","一致；协议","agreement; to give","They reached an accord.","agreement, harmony, pact"],
+["admonish","v.","警告，告诫","to warn or reprimand","The teacher admonished him.","warn, reprimand, scold"],
+["advocate","v./n.","提倡；倡导者","to support publicly","She advocates for reform.","support, champion, promote"],
+["afflict","v.","折磨，使痛苦","to cause suffering","Afflicted with illness.","torment, plague, distress"],
+["alleged","adj.","被指控的，所谓的","claimed but not proven","The alleged thief.","supposed, claimed, reputed"],
+["ambiguous","adj.","模糊的，含糊的","having more than one meaning","His answer was ambiguous.","unclear, vague, equivocal"],
+["amicable","adj.","友好的","friendly, peaceful","An amicable agreement.","friendly, cordial, harmonious"],
+["antecedent","n.","前因，先例","something that came before","An antecedent of crime.","precursor, predecessor"],
+["apprehensive","adj.","担忧的，焦虑的","anxious about the future","Apprehensive about the exam.","anxious, worried, uneasy"],
+["apprise","v.","通知，告知","to inform","Apprise me of changes.","inform, notify, advise"],
+["audacious","adj.","大胆的，无畏的","daring, bold","An audacious plan.","bold, daring, fearless"],
+["austere","adj.","朴素的；严肃的","severe; plain","An austere room.","strict, severe, plain"],
+["bibliophile","n.","爱书的人","a person who loves books","She is a bibliophile.","book lover, book collector"],
+["brusque","adj.","粗鲁的，唐突的","abrupt or curt","A brusque reply.","blunt, curt, abrupt"],
+["caucus","n.","党团会议","a meeting of party members","The Iowa caucus.","assembly, meeting"],
+["cede","v.","割让，放弃","to give up; surrender","Cede territory.","surrender, yield, relinquish"],
+["chagrined","adj.","懊恼的，沮丧的","feeling embarrassed","Chagrined by his mistake.","embarrassed, ashamed"],
+["compel","v.","强迫","to force","Law compels us to pay.","force, oblige, coerce"],
+["complacent","adj.","自满的","self-satisfied","Don't be complacent.","smug, self-satisfied"],
+["comply","v.","遵守，服从","to act in accordance with","Comply with the law.","obey, follow, conform"],
+["conceit","n.","自负，傲慢","excessive pride","His conceit annoys me.","pride, arrogance, vanity"],
+["conceited","adj.","自负的","excessively proud","Too conceited to admit fault.","arrogant, vain, smug"],
+["conscientious","adj.","认真负责的","careful and thorough","A conscientious worker.","diligent, thorough"],
+["conspicuous","adj.","显眼的","easily seen","Her red dress was conspicuous.","obvious, noticeable, prominent"],
+["corporeal","adj.","肉体的，物质的","relating to the body","No corporeal form.","physical, bodily, material"],
+["coup","n.","政变；妙计","sudden seizure of power","A military coup.","takeover, overthrow, feat"],
+["decorum","n.","礼仪，端庄","proper behavior","Behave with decorum.","propriety, etiquette"],
+["defensive","adj.","防御的","intended to defend","A defensive position.","protective, guarded"],
+["deference","n.","尊重，顺从","humble respect","Spoke with deference.","respect, regard, courtesy"],
+["deferential","adj.","恭敬的","showing respect","A deferential manner.","respectful, polite"],
+["deploy","v.","部署","to position strategically","Deploy troops.","position, station, dispatch"],
+["diffidence","n.","羞怯，缺乏自信","shyness; lack of confidence","His diffidence is obvious.","shyness, timidity"],
+["disapprobation","n.","不赞成，反对","strong disapproval","Met with disapprobation.","disapproval, condemnation"],
+["discredit","v.","使丧失信誉","to damage reputation","Discredited the politician.","disgrace, defame"],
+["efficacy","n.","功效，效力","ability to produce results","The drug's efficacy.","effectiveness, potency"],
+["ellipsis","n.","省略号；省略","omission of words","Use an ellipsis.","omission, abbreviation"],
+["ensconce","v.","安置，舒适地坐下","to settle comfortably","Ensconced in the chair.","settle, install"],
+["equable","adj.","平和的；稳定的","calm, even-tempered","An equable temperament.","calm, even, placid"],
+["evident","adj.","明显的","clearly seen","It was evident.","obvious, clear, apparent"],
+["execrate","v.","痛恨，咒骂","to curse or hate","He execrated his enemies.","curse, denounce, detest"],
+["explicate","v.","解释，阐明","to analyze and explain","Explicate the poem.","explain, clarify, interpret"],
+["feign","v.","假装","to pretend","Feign illness.","pretend, fake, simulate"],
+["fidelity","n.","忠诚","faithfulness; loyalty","Marriage requires fidelity.","loyalty, faithfulness"],
+["fraught","adj.","充满（不愉快）的，紧张的","filled with (something bad)","Fraught with danger.","filled, full, charged"],
+["gainsay","v.","否认，反驳","to deny or contradict","No one can gainsay it.","deny, contradict, dispute"],
+["gouge","v.","挖出；敲竹杠","to scoop out; overcharge","Gouged the wall.","dig, scoop, excavate"],
+["grudging","adj.","勉强的","unwilling; reluctant","Grudging approval.","reluctant, unwilling"],
+["hardship","n.","困苦，艰难","severe difficulty","Endured great hardship.","difficulty, suffering, adversity"],
+["impurity","n.","杂质；不纯洁","something that contaminates","Water impurities.","contamination, pollution"],
+["inadvertently","adv.","无意中，不经意","without intention","Inadvertently deleted it.","accidentally, unintentionally"],
+["inept","adj.","无能的，笨拙的","lacking skill","Inept at sports.","incompetent, clumsy"],
+["infallible","adj.","绝对可靠的","never wrong","No one is infallible.","perfect, unerring, foolproof"],
+["insinuate","v.","暗示，含沙射影","to suggest indirectly","Are you insinuating that?","imply, suggest, hint"],
+["insurgent","n.","叛乱者","person rebelling","The insurgents attacked.","rebel, revolutionary"],
+["intend","v.","打算","to plan to do","I intend to study.","plan, mean, aim"],
+["intrepid","adj.","勇敢的，无畏的","fearless","An intrepid explorer.","fearless, brave, bold"],
+["irate","adj.","愤怒的","very angry","The irate customer.","angry, furious, enraged"],
+["lethargic","adj.","昏睡的，无精打采的","sluggish; lacking energy","The heat made me lethargic.","sluggish, sleepy, listless"],
+["lucidity","n.","清晰，明了","clarity of thought","Explained with lucidity.","clarity, coherence"],
+["malevolent","adj.","恶毒的，邪恶的","having evil intentions","A malevolent grin.","evil, hostile, malicious"],
+["mar","v.","损坏，破坏","to damage or spoil","Graffiti marred the wall.","damage, spoil, ruin"],
+["meticulous","adj.","一丝不苟的","very careful with details","Meticulous about work.","careful, thorough, precise"],
+["minute","adj.","微小的 (非\"分钟\")","extremely small","Minute details matter.","tiny, small, microscopic"],
+["neglected","adj.","被忽略的","not cared for","A neglected garden.","ignored, abandoned"],
+["nexus","n.","联系，连接点","a connection","The internet is a nexus.","connection, link, hub"],
+["nicety","n.","细节，精细之处","fine detail","Niceties of etiquette.","subtlety, detail, refinement"],
+["pastoral","adj.","田园的，乡村的","relating to country life","A pastoral scene.","rural, rustic, bucolic"],
+["pendulous","adj.","下垂的","hanging loosely","Pendulous ears.","hanging, drooping, dangling"],
+["pivotal","adj.","关键的","of crucial importance","A pivotal moment.","crucial, critical, key"],
+["placate","v.","安抚，平息","to calm or pacify","Placate the crowd.","calm, pacify, appease"],
+["pork barrel","n.","政治分肥","government spending for political gain","Pure pork barrel bill.","patronage, favoritism"],
+["pragmatic","adj.","务实的","practical; realistic","A pragmatic solution.","practical, realistic, sensible"],
+["precept","n.","准则，戒律","a rule or principle","A moral precept.","principle, rule, doctrine"],
+["privation","n.","贫困，匮乏","lack of basic needs","Suffered privation.","hardship, deprivation, poverty"],
+["proscribe","v.","禁止","to forbid","Law proscribes smoking.","forbid, ban, prohibit"],
+["punctually","adv.","准时地","on time","Arrived punctually.","promptly, on time"],
+["pusillanimous","adj.","胆小的","cowardly","Pusillanimous behavior.","cowardly, timid, spineless"],
+["refractory","adj.","倔强的","stubborn; resistant","A refractory child.","stubborn, obstinate, unruly"],
+["reign","n./v.","统治，王朝","rule of a monarch","Queen's long reign.","rule, govern, dominate"],
+["required","adj.","必需的","necessary","Math is required.","necessary, mandatory, essential"],
+["scabbard","n.","剑鞘","sheath for a sword","Sword in scabbard.","sheath, holster"],
+["stalwart","adj.","坚定的","loyal and reliable","A stalwart supporter.","loyal, steadfast, staunch"],
+["stentorian","adj.","声音洪亮的","extremely loud","His stentorian voice.","loud, booming, thunderous"],
+["stolid","adj.","麻木的","showing little emotion","Remained stolid.","impassive, unemotional, stoic"],
+["subordinate","adj./n.","下级的","lower in rank","Manage subordinates.","inferior, junior, subservient"],
+["succinct","adj.","简洁的","briefly expressed","A succinct answer.","concise, brief, terse"],
+["superannuated","adj.","过时的","obsolete due to age","Superannuated machine.","outdated, obsolete, antiquated"],
+["supersede","v.","取代","to replace","Supersedes the old rule.","replace, supplant, override"],
+["surreptitious","adj.","偷偷的","done secretly","A surreptitious glance.","secret, stealthy, covert"],
+["tenacious","adj.","顽强的","persistent","Tenacious in goals.","persistent, determined, dogged"],
+["tractable","adj.","易管教的","easy to manage","A tractable horse.","manageable, docile, compliant"],
+["treacherous","adj.","背信弃义的；危险的","betraying; dangerous","A treacherous path.","dangerous, perilous, disloyal"],
+["upbraid","v.","严厉责备","to scold severely","Upbraided the team.","scold, reprimand, rebuke"],
+["vain","adj.","徒劳的；自负的","useless; conceited","All in vain.","futile, useless, conceited"],
+["venerate","v.","尊敬，崇敬","to regard with respect","Venerate our ancestors.","respect, revere, honor"],
+["vicissitude","n.","变迁，盛衰","changes in life","Life's vicissitudes.","change, variation, fluctuation"],
+["warble","v.","鸟鸣，颤声唱","to sing with trilling","Birds warbled at dawn.","sing, trill, chirp"],
+["yeoman","n.","勤恳的工作者","loyal worker; small farmer","Yeoman work on project.","farmer, freeholder"],
+["yield","v./n.","屈服；产量","to give in; produce","Trees yield fruit.","surrender, produce, submit"],
+// --- Second 100 ---
+["adamant","adj.","坚定的","refusing to be persuaded","Adamant about her decision.","unyielding, resolute, firm"],
+["adept","adj.","熟练的","very skilled","Adept at chess.","skilled, expert, proficient"],
+["adhere","v.","坚持；粘附","to stick; follow closely","Adhere to rules.","stick, follow, abide"],
+["adjacent","adj.","邻近的","next to","Adjacent rooms.","next to, neighboring, abutting"],
+["adroit","adj.","灵巧的","skillful","An adroit negotiator.","skillful, dexterous, deft"],
+["adverse","adj.","不利的","unfavorable","Adverse weather.","unfavorable, hostile, negative"],
+["adversary","n.","对手","opponent","A formidable adversary.","opponent, foe, rival"],
+["affable","adj.","和蔼的","friendly, easy to talk to","An affable host.","friendly, genial, amiable"],
+["affinity","n.","亲近，爱好","natural liking","An affinity for music.","liking, attraction, kinship"],
+["affluent","adj.","富裕的","wealthy","An affluent neighborhood.","wealthy, rich, prosperous"],
+["alacrity","n.","欣然，敏捷","cheerful willingness","Agreed with alacrity.","eagerness, readiness, willingness"],
+["alleviate","v.","减轻","to relieve","Alleviate the pain.","relieve, ease, mitigate"],
+["allocate","v.","分配","to distribute","Allocate funds.","distribute, assign, allot"],
+["aloof","adj.","冷漠的","distant; reserved","Stood aloof.","distant, detached, reserved"],
+["altruistic","adj.","利他的","selfless","Altruistic actions.","selfless, unselfish, charitable"],
+["ambivalent","adj.","矛盾的","mixed feelings","Ambivalent about moving.","conflicted, undecided, torn"],
+["ameliorate","v.","改善","to make better","Ameliorate conditions.","improve, better, enhance"],
+["ample","adj.","充足的","plenty","Ample evidence.","plentiful, abundant, sufficient"],
+["anomaly","n.","反常","irregularity","A statistical anomaly.","irregularity, deviation, oddity"],
+["antagonize","v.","激怒","to provoke hostility","Don't antagonize him.","provoke, alienate, irritate"],
+["apathy","n.","冷漠","indifference","Public apathy.","indifference, lethargy, disinterest"],
+["apprehend","v.","逮捕；理解","to arrest; understand","Apprehend the suspect.","arrest, catch, understand"],
+["arbitrary","adj.","任意的","random; without reason","An arbitrary choice.","random, capricious, whimsical"],
+["arcane","adj.","神秘的","mysterious; known to few","Arcane knowledge.","mysterious, esoteric, obscure"],
+["archaic","adj.","古老的","ancient; outdated","Archaic language.","ancient, antiquated, obsolete"],
+["ardent","adj.","热情的","passionate","An ardent supporter.","passionate, fervent, zealous"],
+["arduous","adj.","艰难的","very difficult","An arduous journey.","difficult, strenuous, laborious"],
+["articulate","adj./v.","善表达的","well-spoken; to express","An articulate speaker.","eloquent, fluent, expressive"],
+["assiduous","adj.","勤勉的","showing great care","An assiduous student.","diligent, industrious, hardworking"],
+["assuage","v.","缓和","to soothe","Assuage their fears.","soothe, ease, alleviate"],
+["astute","adj.","精明的","shrewd","An astute investor.","shrewd, sharp, perceptive"],
+["augment","v.","增加","to increase","Augment income.","increase, boost, enhance"],
+["auspicious","adj.","吉利的","favorable","An auspicious start.","favorable, promising, propitious"],
+["avarice","n.","贪婪","greed","Driven by avarice.","greed, cupidity, rapacity"],
+["avert","v.","避免；转移","to prevent; turn away","Avert disaster.","prevent, avoid, deflect"],
+["avid","adj.","热衷的","enthusiastic","An avid reader.","enthusiastic, keen, eager"],
+["belligerent","adj.","好斗的","hostile; warlike","A belligerent tone.","hostile, aggressive, combative"],
+["benevolent","adj.","仁慈的","kind","A benevolent leader.","kind, charitable, generous"],
+["benign","adj.","温和的；良性的","gentle; not harmful","A benign tumor.","kind, gentle, harmless"],
+["berate","v.","严厉斥责","to scold harshly","Berated the team.","scold, reproach, upbraid"],
+["blatant","adj.","公然的","obvious; shameless","A blatant lie.","obvious, flagrant, glaring"],
+["bolster","v.","支持，增强","to support","Bolster confidence.","support, reinforce, strengthen"],
+["brevity","n.","简短","shortness","The brevity of life.","shortness, conciseness, terseness"],
+["buoyant","adj.","乐观的；浮的","cheerful; floating","A buoyant mood.","cheerful, optimistic, light"],
+["cajole","v.","哄骗","to coax with flattery","Cajole him into agreeing.","coax, persuade, wheedle"],
+["callous","adj.","无情的","insensitive","A callous remark.","insensitive, heartless, unfeeling"],
+["candid","adj.","坦率的","honest, frank","A candid opinion.","honest, frank, straightforward"],
+["candor","n.","坦率","honesty","Spoke with candor.","honesty, frankness, openness"],
+["capricious","adj.","反复无常的","unpredictable","Capricious weather.","fickle, unpredictable, whimsical"],
+["censure","v./n.","谴责","to criticize formally","Censure his actions.","criticize, condemn, reproach"],
+["chastise","v.","责骂","to scold","Chastised for tardiness.","scold, rebuke, reprimand"],
+["circumspect","adj.","谨慎的","cautious","Circumspect in decisions.","cautious, prudent, careful"],
+["clandestine","adj.","秘密的","done in secret","Clandestine meetings.","secret, covert, surreptitious"],
+["coerce","v.","强迫","to force","Coerced into signing.","force, compel, pressure"],
+["coherent","adj.","连贯的","logical and consistent","A coherent argument.","logical, consistent, rational"],
+["compatible","adj.","兼容的","able to work together","Compatible devices.","matching, suitable, harmonious"],
+["concede","v.","承认","to admit","Concede defeat.","admit, acknowledge, yield"],
+["concise","adj.","简洁的","brief and clear","A concise summary.","brief, succinct, terse"],
+["condescend","v.","屈尊","to look down on","Condescended to speak.","patronize, deign, stoop"],
+["condone","v.","宽恕","to overlook wrongdoing","Cannot condone violence.","excuse, overlook, forgive"],
+["conjecture","n./v.","推测","guess based on incomplete info","Pure conjecture.","speculation, guess, surmise"],
+["consensus","n.","共识","general agreement","Reached consensus.","agreement, accord, unanimity"],
+["contemplate","v.","沉思，考虑","to think carefully","Contemplate the future.","consider, ponder, meditate"],
+["contemptuous","adj.","轻蔑的","showing scorn","A contemptuous look.","scornful, disdainful, sneering"],
+["contend","v.","争论；竞争","to argue; compete","Contend with rivals.","argue, compete, struggle"],
+["contrite","adj.","悔过的","feeling sorrow","A contrite apology.","sorry, remorseful, repentant"],
+["copious","adj.","丰富的","abundant","Copious notes.","abundant, plentiful, profuse"],
+["corroborate","v.","证实","to confirm","Corroborate the story.","confirm, verify, substantiate"],
+["covert","adj.","隐蔽的","hidden; secret","A covert operation.","hidden, secret, clandestine"],
+["covet","v.","觊觎，渴望","to desire (another's)","Covet his position.","desire, crave, envy"],
+["credulous","adj.","轻信的","easily deceived","Credulous tourists.","gullible, naive, trusting"],
+["cryptic","adj.","隐晦的","mysterious","A cryptic message.","mysterious, enigmatic, obscure"],
+["culpable","adj.","应受责备的","deserving blame","Culpable for the loss.","guilty, blameworthy, at fault"],
+["cursory","adj.","草率的","hasty; superficial","A cursory glance.","quick, superficial, hasty"],
+["curtail","v.","缩减","to reduce","Curtail spending.","reduce, cut back, shorten"],
+["cynical","adj.","愤世嫉俗的","distrustful of motives","A cynical view.","skeptical, distrustful, pessimistic"],
+["dauntless","adj.","无畏的","fearless","A dauntless hero.","fearless, intrepid, brave"],
+["deride","v.","嘲笑","to mock","Derided his idea.","mock, ridicule, scorn"],
+["detrimental","adj.","有害的","harmful","Detrimental to health.","harmful, damaging, injurious"],
+["disparage","v.","贬低","to belittle","Disparage his work.","belittle, denigrate, criticize"],
+["dubious","adj.","可疑的","doubtful","A dubious claim.","doubtful, suspicious, questionable"],
+["ebullient","adj.","兴高采烈的","cheerful and energetic","Ebullient mood.","cheerful, enthusiastic, exuberant"],
+["eccentric","adj.","古怪的","unconventional","An eccentric artist.","odd, unconventional, quirky"],
+["elicit","v.","引出","to draw out","Elicit a response.","draw out, evoke, extract"],
+["eloquent","adj.","雄辩的","fluent and persuasive","An eloquent speech.","articulate, expressive, persuasive"],
+["emulate","v.","效仿","to imitate","Emulate his success.","imitate, copy, mimic"],
+["enervate","v.","使衰弱","to weaken","Enervated by heat.","weaken, exhaust, drain"],
+["enigma","n.","谜","mystery","Life is an enigma.","mystery, puzzle, riddle"],
+["ephemeral","adj.","短暂的","lasting briefly","Ephemeral beauty.","short-lived, fleeting, transient"],
+["erudite","adj.","博学的","scholarly","An erudite professor.","scholarly, learned, knowledgeable"],
+["evade","v.","逃避","to avoid","Evade the question.","avoid, dodge, elude"],
+["exalt","v.","赞美，提升","to praise highly","Exalt his virtues.","praise, glorify, elevate"],
+["exemplary","adj.","模范的","worthy of imitation","Exemplary behavior.","model, ideal, outstanding"],
+["expedite","v.","加快","to speed up","Expedite the process.","accelerate, hasten, speed up"],
+["extol","v.","颂扬","to praise","Extol her achievements.","praise, laud, celebrate"],
+["extraneous","adj.","无关的","irrelevant","Extraneous information.","irrelevant, unrelated, superfluous"],
+["fastidious","adj.","挑剔的","very attentive to detail","Fastidious about cleaning.","meticulous, particular, picky"],
+["fervent","adj.","热诚的","intensely passionate","A fervent believer.","passionate, ardent, zealous"],
+["fickle","adj.","易变的","changing frequently","Fickle weather.","changeable, capricious, inconstant"],
+["formidable","adj.","可怕的","inspiring fear","A formidable opponent.","intimidating, daunting, fearsome"],
+["frugal","adj.","节俭的","economical","A frugal lifestyle.","thrifty, economical, sparing"],
+["furtive","adj.","鬼鬼祟祟的","secret; stealthy","A furtive glance.","stealthy, sneaky, surreptitious"],
+["garrulous","adj.","唠叨的","excessively talkative","A garrulous neighbor.","talkative, loquacious, chatty"],
+["gregarious","adj.","合群的","sociable","A gregarious personality.","sociable, outgoing, social"],
+// --- Tone Words 语气词 (PC题专用，含倾向标记) ---
+["affectionate","adj.","充满爱意的 (积极)","showing love","An affectionate hug.","loving, fond, warm, tender"],
+["fond","adj.","喜爱的 (积极)","having affection","Fond of his students.","affectionate, loving, devoted"],
+["sentimental","adj.","多愁善感的 (积极)","emotionally tender","Sentimental memories.","emotional, tender, nostalgic"],
+["comical","adj.","滑稽的 (积极)","amusing","A comical scene.","funny, amusing, humorous"],
+["amusing","adj.","有趣的 (积极)","entertaining","An amusing story.","entertaining, funny, diverting"],
+["witty","adj.","机智的 (积极)","cleverly funny","A witty remark.","clever, sharp, humorous"],
+["tranquil","adj.","宁静的 (积极)","calm","A tranquil lake.","calm, peaceful, serene"],
+["serene","adj.","安详的 (积极)","calm, peaceful","A serene smile.","calm, peaceful, placid"],
+["reverent","adj.","虔诚恭敬的 (积极)","showing deep respect","A reverent silence.","respectful, devout, awestruck"],
+["courteous","adj.","有礼貌的 (积极)","polite","A courteous reply.","polite, civil, gracious"],
+["stirred up","phrase","激动的 (积极)","excited, roused","Stirred up by the news.","excited, roused, energized"],
+["jubilation","n.","欢腾 (积极)","great joy","Cries of jubilation.","joy, elation, exultation"],
+["gloomy","adj.","阴郁的 (消极)","sad, dark","A gloomy mood.","sad, dismal, dreary"],
+["solemn","adj.","严肃的 (消极)","serious, grave","A solemn ceremony.","serious, grave, dignified"],
+["dismayed","adj.","沮丧惊愕的 (消极)","shocked and upset","Dismayed by the news.","shocked, alarmed, distressed"],
+["wary","adj.","警惕的 (消极)","cautious, suspicious","Wary of strangers.","cautious, careful, vigilant"],
+["malicious","adj.","恶意的 (消极)","spiteful","Malicious gossip.","spiteful, vicious, malevolent"],
+["resentful","adj.","怨恨的 (消极)","bitter, indignant","A resentful tone.","bitter, indignant, aggrieved"],
+["insensitive","adj.","不敏感的 (消极)","showing no awareness","An insensitive remark.","callous, unfeeling, tactless"],
+["cynical","adj.","愤世嫉俗的 (消极)","distrustful","A cynical view.","skeptical, distrustful, pessimistic"],
+["scolding","adj.","责骂的 (消极)","reproachful","A scolding tone.","reprimanding, chiding, rebuking"],
+["reprimanding","adj.","训斥的 (消极)","rebuking sharply","A reprimanding voice.","scolding, censuring, rebuking"],
+["admonishing","adj.","告诫的 (消极)","warning, reproving","An admonishing finger.","warning, cautioning, reproving"],
+["irreverent","adj.","不敬的 (消极)","lacking respect","An irreverent joke.","disrespectful, mocking, flippant"],
+["vindictive","adj.","报复心强的 (消极)","seeking revenge","A vindictive remark.","vengeful, spiteful, retaliatory"],
+["spiteful","adj.","怀恨的 (消极)","malicious","A spiteful comment.","malicious, vindictive, malevolent"],
+["tragic","adj.","悲剧的 (消极)","sad, catastrophic","A tragic ending.","sad, sorrowful, catastrophic"],
+["mournful","adj.","悲伤的 (消极)","expressing grief","A mournful song.","sorrowful, sad, melancholy"],
+["dreading","v./adj.","畏惧的 (消极)","fearing greatly","Dreading the meeting.","fearing, anticipating with anxiety"],
+["remorseful","adj.","悔恨的 (消极)","feeling regret","A remorseful apology.","regretful, contrite, repentant"]
+];
+
+// =====================================================================
+// State Management
+// =====================================================================
+const DEFAULT_CATS = {
+  asvab: { name: "ASVAB 234", words: ASVAB_200 }
+};
+
+let state = {
+  currentCat: 'asvab',
+  categories: DEFAULT_CATS,
+  progress: {}, // { catId: { wordIdx: 'mastered'|'review'|'new' } }
+  customCats: {}, // user-added categories
+  queue: [], // current viewing queue (indices)
+  queuePos: 0,
+  filter: 'all' // 'all' | 'review'
+};
+
+const $ = id => document.getElementById(id);
+
+// =====================================================================
+// Storage (localStorage - 完全离线，存在手机浏览器本地)
+// =====================================================================
+const storage = {
+  get(key) {
+    try {
+      const v = localStorage.getItem('vocabswipe_' + key);
+      return v ? JSON.parse(v) : null;
+    } catch(e) { return null; }
+  },
+  set(key, value) {
+    try { localStorage.setItem('vocabswipe_' + key, JSON.stringify(value)); return true; }
+    catch(e) { return false; }
+  },
+  remove(key) {
+    try { localStorage.removeItem('vocabswipe_' + key); return true; }
+    catch(e) { return false; }
+  }
+};
+
+function loadState() {
+  const p = storage.get('progress');
+  if (p) state.progress = p;
+  const c = storage.get('customCats');
+  if (c) {
+    state.customCats = c;
+    Object.assign(state.categories, state.customCats);
+  }
+  const cur = storage.get('currentCat');
+  if (cur && state.categories[cur]) state.currentCat = cur;
+}
+
+let saveTimer = null;
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    storage.set('progress', state.progress);
+    storage.set('currentCat', state.currentCat);
+  }, 300);
+}
+
+function saveCustomCats() {
+  storage.set('customCats', state.customCats);
+}
+
+// =====================================================================
+// Queue & Card Management
+// =====================================================================
+function getProgress(catId) {
+  if (!state.progress[catId]) state.progress[catId] = {};
+  return state.progress[catId];
+}
+
+function buildQueue() {
+  const cat = state.categories[state.currentCat];
+  if (!cat) return [];
+  const prog = getProgress(state.currentCat);
+  const words = cat.words;
+  let queue = [];
+  if (state.filter === 'review') {
+    queue = words.map((_, i) => i).filter(i => prog[i] === 'review');
+  } else if (state.filter === 'mastered') {
+    queue = words.map((_, i) => i).filter(i => prog[i] === 'mastered');
+  } else {
+    // Priority: new > review > mastered
+    const newWords = words.map((_, i) => i).filter(i => !prog[i] || prog[i] === 'new');
+    const reviewWords = words.map((_, i) => i).filter(i => prog[i] === 'review');
+    queue = [...newWords, ...reviewWords];
+  }
+  state.queue = queue;
+  state.queuePos = 0;
+}
+
+function getCurrentCardIdx() {
+  if (state.queuePos >= state.queue.length) return null;
+  return state.queue[state.queuePos];
+}
+
+function getCardAtOffset(offset) {
+  const idx = state.queuePos + offset;
+  if (idx >= state.queue.length) return null;
+  return state.queue[idx];
+}
+
+// =====================================================================
+// Render
+// =====================================================================
+function renderStats() {
+  const cat = state.categories[state.currentCat];
+  if (!cat) return;
+  const prog = getProgress(state.currentCat);
+  const total = cat.words.length;
+  let mastered = 0, review = 0, neu = 0;
+  cat.words.forEach((_, i) => {
+    const s = prog[i];
+    if (s === 'mastered') mastered++;
+    else if (s === 'review') review++;
+    else neu++;
+  });
+  $('statMastered').textContent = mastered;
+  $('statReview').textContent = review;
+  $('statNew').textContent = neu;
+  $('statTotal').textContent = total;
+  const pct = total ? Math.round((mastered / total) * 100) : 0;
+  $('progressBar').style.width = pct + '%';
+  $('catName').textContent = cat.name;
+}
+
+function cardHTML(wordData) {
+  const [w, pos, zh, en, ex, syn] = wordData;
+  return `
+    <div class="card-face face-front">
+      <div class="pos">${pos}</div>
+      <div class="word">${w}</div>
+      <div class="hint">轻触翻面 · 左滑复习 · 右滑会了</div>
+      <div class="swipe-indicator left">复习</div>
+      <div class="swipe-indicator right">会了</div>
+    </div>
+    <div class="card-face face-back">
+      <div>
+        <div class="back-word">${w}</div>
+        <div class="back-pron">${pos}</div>
+      </div>
+      <div class="back-section">
+        <div class="back-label">中文 释义</div>
+        <div class="back-zh">${zh}</div>
+        <div class="back-en">${en}</div>
+      </div>
+      <div class="back-section">
+        <div class="back-label">例句 EXAMPLE</div>
+        <div class="back-example">${ex}</div>
+      </div>
+      <div class="back-section">
+        <div class="back-label">同义词 SYNONYMS (ASVAB考点)</div>
+        <div class="back-syn">${syn}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderStack() {
+  const stack = $('stack');
+  stack.innerHTML = '';
+  const cat = state.categories[state.currentCat];
+
+  if (!cat || state.queue.length === 0 || state.queuePos >= state.queue.length) {
+    const allMastered = cat && Object.values(getProgress(state.currentCat)).filter(v => v === 'mastered').length === cat.words.length;
+    stack.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">${allMastered ? '🎉' : '✨'}</div>
+        <h3>${allMastered ? '全部掌握！' : '本轮完成'}</h3>
+        <p>${allMastered ? '你已经完成这个词库的所有单词。试试 GRE/SAT 词库？' : '可以打乱重来，或者只复习标记词。'}</p>
+      </div>
+    `;
+    renderStats();
+    return;
+  }
+
+  // Render up to 3 cards stacked (current + 2 behind)
+  for (let i = 2; i >= 0; i--) {
+    const idx = getCardAtOffset(i);
+    if (idx === null) continue;
+    const wordData = cat.words[idx];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.offset = i;
+    card.dataset.idx = idx;
+    if (i === 0) {
+      card.style.zIndex = 10;
+    } else {
+      card.style.zIndex = 10 - i;
+      card.style.transform = `translateY(${i * 8}px) scale(${1 - i * 0.04})`;
+      card.style.opacity = 1 - i * 0.15;
+    }
+    card.innerHTML = cardHTML(wordData);
+    stack.appendChild(card);
+  }
+
+  attachCardHandlers();
+  renderStats();
+}
+
+// =====================================================================
+// Gestures
+// =====================================================================
+function attachCardHandlers() {
+  const card = document.querySelector('.card[data-offset="0"]');
+  if (!card) return;
+
+  let startX = 0, startY = 0, currentX = 0, currentY = 0;
+  let dragging = false, moved = false;
+  let startTime = 0;
+
+  const onStart = (x, y) => {
+    startX = x; startY = y;
+    currentX = 0; currentY = 0;
+    dragging = true; moved = false;
+    startTime = Date.now();
+    card.classList.add('dragging');
+  };
+
+  const onMove = (x, y) => {
+    if (!dragging) return;
+    currentX = x - startX;
+    currentY = y - startY;
+    if (Math.abs(currentX) > 8 || Math.abs(currentY) > 8) moved = true;
+    const rotation = currentX * 0.08;
+    card.style.transform = `translate(${currentX}px, ${currentY}px) rotate(${rotation}deg)`;
+    // Show indicators
+    const leftInd = card.querySelector('.swipe-indicator.left');
+    const rightInd = card.querySelector('.swipe-indicator.right');
+    if (leftInd && rightInd) {
+      const absX = Math.abs(currentX);
+      const opacity = Math.min(absX / 80, 1);
+      if (currentX < -10) {
+        leftInd.style.opacity = opacity;
+        rightInd.style.opacity = 0;
+      } else if (currentX > 10) {
+        rightInd.style.opacity = opacity;
+        leftInd.style.opacity = 0;
+      } else {
+        leftInd.style.opacity = 0;
+        rightInd.style.opacity = 0;
+      }
+    }
+  };
+
+  const onEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    const threshold = 100;
+    const elapsed = Date.now() - startTime;
+    if (!moved && elapsed < 300) {
+      // It's a tap - flip the card
+      card.classList.toggle('flipped');
+      vibrate(8);
+      return;
+    }
+    if (currentX < -threshold) {
+      swipeOut(card, 'left');
+    } else if (currentX > threshold) {
+      swipeOut(card, 'right');
+    } else {
+      // Snap back
+      card.style.transform = '';
+      const leftInd = card.querySelector('.swipe-indicator.left');
+      const rightInd = card.querySelector('.swipe-indicator.right');
+      if (leftInd) leftInd.style.opacity = 0;
+      if (rightInd) rightInd.style.opacity = 0;
+    }
+  };
+
+  // Touch
+  card.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    onStart(t.clientX, t.clientY);
+  }, { passive: true });
+  card.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    onMove(t.clientX, t.clientY);
+  }, { passive: true });
+  card.addEventListener('touchend', onEnd);
+  card.addEventListener('touchcancel', onEnd);
+
+  // Mouse
+  card.addEventListener('mousedown', e => {
+    onStart(e.clientX, e.clientY);
+    e.preventDefault();
+  });
+  const mouseMove = e => onMove(e.clientX, e.clientY);
+  const mouseUp = () => {
+    onEnd();
+    document.removeEventListener('mousemove', mouseMove);
+    document.removeEventListener('mouseup', mouseUp);
+  };
+  card.addEventListener('mousedown', () => {
+    document.addEventListener('mousemove', mouseMove);
+    document.addEventListener('mouseup', mouseUp);
+  });
+}
+
+function swipeOut(card, direction) {
+  const idx = parseInt(card.dataset.idx);
+  const targetX = direction === 'right' ? window.innerWidth + 200 : -window.innerWidth - 200;
+  const rotation = direction === 'right' ? 30 : -30;
+  card.style.transform = `translate(${targetX}px, 0) rotate(${rotation}deg)`;
+  card.style.opacity = 0;
+  vibrate(direction === 'right' ? 15 : 25);
+
+  // Mark progress
+  const prog = getProgress(state.currentCat);
+  prog[idx] = direction === 'right' ? 'mastered' : 'review';
+  saveState();
+
+  // Show toast
+  toast(direction === 'right' ? '✓ 已掌握' : '↻ 加入复习');
+
+  setTimeout(() => {
+    state.queuePos++;
+    renderStack();
+  }, 350);
+}
+
+function vibrate(ms) {
+  if (navigator.vibrate) try { navigator.vibrate(ms); } catch(e) {}
+}
+
+function programmaticSwipe(direction) {
+  const card = document.querySelector('.card[data-offset="0"]');
+  if (!card) return;
+  swipeOut(card, direction);
+}
+
+function flipCurrent() {
+  const card = document.querySelector('.card[data-offset="0"]');
+  if (!card) return;
+  card.classList.toggle('flipped');
+  vibrate(8);
+}
+
+// =====================================================================
+// Toast
+// =====================================================================
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+// =====================================================================
+// Modal & UI Wiring
+// =====================================================================
+function openModal(id) { $(id).classList.add('show'); }
+function closeModal(id) { $(id).classList.remove('show'); }
+
+function renderCatList() {
+  const list = $('catList');
+  list.innerHTML = '';
+  Object.entries(state.categories).forEach(([id, cat]) => {
+    const prog = getProgress(id);
+    const mastered = Object.values(prog).filter(v => v === 'mastered').length;
+    const total = cat.words.length;
+    const pct = total ? Math.round((mastered / total) * 100) : 0;
+    const item = document.createElement('div');
+    item.className = 'cat-item' + (id === state.currentCat ? ' active' : '');
+    item.innerHTML = `
+      <div class="cat-meta">
+        <div class="cat-name">${cat.name}</div>
+        <div class="cat-count">${total} 词 · 已掌握 ${mastered}</div>
+      </div>
+      <div class="cat-progress">${pct}%</div>
+    `;
+    item.onclick = () => {
+      state.currentCat = id;
+      state.filter = 'all';
+      buildQueue();
+      renderStack();
+      saveState();
+      closeModal('catModal');
+    };
+    list.appendChild(item);
+  });
+}
+
+// =====================================================================
+// Word List View (查看已学单词)
+// =====================================================================
+let wlState = { filter: 'mastered', search: '' };
+
+function openWordList(filter) {
+  wlState.filter = filter || 'all';
+  wlState.search = '';
+  $('wlSearch').value = '';
+  document.querySelectorAll('.wl-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.filter === wlState.filter);
+  });
+  renderWordList();
+  openModal('wordListModal');
+}
+
+function renderWordList() {
+  const cat = state.categories[state.currentCat];
+  if (!cat) return;
+  const prog = getProgress(state.currentCat);
+  const list = $('wlList');
+  const q = wlState.search.toLowerCase().trim();
+
+  const titles = { all: '所有单词', new: '未学单词', review: '复习单词', mastered: '已掌握单词' };
+  $('wlTitle').textContent = titles[wlState.filter] || '单词列表';
+
+  const items = cat.words.map((w, i) => ({ idx: i, data: w, status: prog[i] || 'new' }))
+    .filter(it => {
+      if (wlState.filter !== 'all' && it.status !== wlState.filter) return false;
+      if (q) {
+        const [word, , zh] = it.data;
+        if (!word.toLowerCase().includes(q) && !zh.includes(q)) return false;
+      }
+      return true;
+    });
+
+  $('wlCount').textContent = `共 ${items.length} 个单词`;
+
+  if (items.length === 0) {
+    list.innerHTML = '<div class="wl-empty">没有符合条件的单词</div>';
+    return;
+  }
+
+  list.innerHTML = items.map(it => {
+    const [word, pos, zh, en, ex, syn] = it.data;
+    const badgeText = { mastered: '已掌握', review: '复习', new: '未学' }[it.status];
+    return `
+      <div class="wl-item" data-idx="${it.idx}" data-status="${it.status}">
+        <div class="wl-row">
+          <span class="wl-word">${word}</span>
+          <span class="wl-pos">${pos}</span>
+          <span class="wl-badge ${it.status}">${badgeText}</span>
+          <span class="wl-zh">${zh}</span>
+        </div>
+        <div class="wl-detail">
+          <div class="wl-detail-row">
+            <span class="wl-detail-label">English</span>
+            <span class="wl-detail-en">${en}</span>
+          </div>
+          <div class="wl-detail-row">
+            <span class="wl-detail-label">Example</span>
+            <span class="wl-detail-ex">${ex}</span>
+          </div>
+          <div class="wl-detail-row">
+            <span class="wl-detail-label">Synonyms</span>
+            <span class="wl-detail-syn">${syn}</span>
+          </div>
+          <div class="wl-actions">
+            ${it.status !== 'review' ? `<button class="wl-action to-review" data-action="review" data-idx="${it.idx}">↻ 放回复习</button>` : ''}
+            ${it.status !== 'mastered' ? `<button class="wl-action to-mastered" data-action="mastered" data-idx="${it.idx}">✓ 标记掌握</button>` : ''}
+            ${it.status !== 'new' ? `<button class="wl-action to-new" data-action="new" data-idx="${it.idx}">⟲ 重置未学</button>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Tap to expand
+  list.querySelectorAll('.wl-item').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.classList.contains('wl-action')) return;
+      item.classList.toggle('expanded');
+    });
+  });
+  // Action buttons
+  list.querySelectorAll('.wl-action').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      const newStatus = btn.dataset.action;
+      moveWordStatus(idx, newStatus);
+    });
+  });
+}
+
+function moveWordStatus(idx, newStatus) {
+  const prog = getProgress(state.currentCat);
+  if (newStatus === 'new') delete prog[idx];
+  else prog[idx] = newStatus;
+  saveState();
+  buildQueue();
+  renderStack();
+  renderWordList();
+  const msg = { mastered: '✓ 已掌握', review: '↻ 放回复习', new: '⟲ 重置' }[newStatus];
+  toast(msg);
+  vibrate(10);
+}
+
+// Stat column click handlers
+$('statColNew').onclick = () => openWordList('new');
+$('statColReview').onclick = () => openWordList('review');
+$('statColMastered').onclick = () => openWordList('mastered');
+
+// Filter pills inside word list modal
+document.querySelectorAll('.wl-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    wlState.filter = pill.dataset.filter;
+    document.querySelectorAll('.wl-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    renderWordList();
+  });
+});
+
+// Search input
+$('wlSearch').addEventListener('input', e => {
+  wlState.search = e.target.value;
+  renderWordList();
+});
+
+// Buttons
+$('btnReview').onclick = () => programmaticSwipe('left');
+$('btnMastered').onclick = () => programmaticSwipe('right');
+$('btnFlip').onclick = flipCurrent;
+
+$('catSwitch').onclick = () => { renderCatList(); openModal('catModal'); };
+$('menuBtn').onclick = () => openModal('menuModal');
+
+$('btnAddCat').onclick = () => { closeModal('catModal'); openModal('addCatModal'); };
+
+$('btnSaveCat').onclick = () => {
+  const name = $('newCatName').value.trim();
+  const dataStr = $('newCatData').value.trim();
+  if (!name) { toast('请输入词库名'); return; }
+  if (!dataStr) { toast('请输入单词数据'); return; }
+  try {
+    const data = JSON.parse(dataStr);
+    if (!Array.isArray(data) || data.length === 0) throw new Error('数据格式错误');
+    // Validate each entry
+    for (const entry of data) {
+      if (!Array.isArray(entry) || entry.length < 3) throw new Error('每个单词至少需要 [词, 词性, 中文] 3个字段');
+    }
+    // Pad missing fields
+    const padded = data.map(e => [
+      e[0] || '', e[1] || '', e[2] || '', e[3] || '', e[4] || '', e[5] || ''
+    ]);
+    const id = 'custom_' + Date.now();
+    state.customCats[id] = { name, words: padded };
+    state.categories[id] = state.customCats[id];
+    saveCustomCats();
+    $('newCatName').value = '';
+    $('newCatData').value = '';
+    closeModal('addCatModal');
+    toast(`✓ 已添加 ${padded.length} 词`);
+    state.currentCat = id;
+    state.filter = 'all';
+    buildQueue();
+    renderStack();
+    saveState();
+  } catch(e) {
+    toast('JSON 格式错误: ' + e.message);
+  }
+};
+
+$('btnShuffle').onclick = () => {
+  for (let i = state.queue.length - 1; i > state.queuePos; i--) {
+    const j = state.queuePos + Math.floor(Math.random() * (i - state.queuePos + 1));
+    [state.queue[i], state.queue[j]] = [state.queue[j], state.queue[i]];
+  }
+  renderStack();
+  closeModal('menuModal');
+  toast('🔀 已打乱');
+};
+
+$('btnResetCard').onclick = () => {
+  if (!confirm('重新开始本词库？所有进度将清空。')) return;
+  state.progress[state.currentCat] = {};
+  state.filter = 'all';
+  buildQueue();
+  renderStack();
+  saveState();
+  closeModal('menuModal');
+  toast('已重置');
+};
+
+$('btnReviewOnly').onclick = () => {
+  state.filter = 'review';
+  buildQueue();
+  renderStack();
+  closeModal('menuModal');
+  toast('🔄 只看复习');
+};
+
+$('btnMasteredOnly').onclick = () => {
+  state.filter = 'mastered';
+  buildQueue();
+  renderStack();
+  closeModal('menuModal');
+  toast('🎯 自测掌握词');
+};
+
+$('btnAllCards').onclick = () => {
+  state.filter = 'all';
+  buildQueue();
+  renderStack();
+  closeModal('menuModal');
+  toast('📚 全部单词');
+};
+
+$('btnResetAll').onclick = () => {
+  if (!confirm('清空所有词库的所有进度？此操作不可撤销。')) return;
+  state.progress = {};
+  storage.remove('progress');
+  buildQueue();
+  renderStack();
+  closeModal('menuModal');
+  toast('已清空所有进度');
+};
+
+$('btnExport').onclick = () => {
+  const backup = {
+    progress: state.progress,
+    customCats: state.customCats,
+    exportedAt: new Date().toISOString()
+  };
+  const json = JSON.stringify(backup, null, 2);
+  $('importData').value = json;
+  $('importHelp').textContent = '👇 这是你的备份数据 — 长按全选复制保存（换手机时粘贴回来即可）：';
+  closeModal('menuModal');
+  openModal('importModal');
+};
+
+$('btnImport').onclick = () => {
+  $('importData').value = '';
+  $('importHelp').textContent = '粘贴之前导出的备份 JSON：';
+  closeModal('menuModal');
+  openModal('importModal');
+};
+
+$('btnDoImport').onclick = () => {
+  const dataStr = $('importData').value.trim();
+  if (!dataStr) { toast('请先粘贴数据'); return; }
+  try {
+    const data = JSON.parse(dataStr);
+    if (data.progress) state.progress = data.progress;
+    if (data.customCats) {
+      state.customCats = data.customCats;
+      Object.assign(state.categories, state.customCats);
+      saveCustomCats();
+    }
+    saveState();
+    buildQueue();
+    renderStack();
+    closeModal('importModal');
+    toast('✓ 已导入');
+  } catch(e) {
+    toast('JSON 格式错误');
+  }
+};
+
+// Keyboard for desktop testing
+document.addEventListener('keydown', e => {
+  if (document.querySelector('.modal-overlay.show')) return;
+  if (e.key === 'ArrowLeft') programmaticSwipe('left');
+  else if (e.key === 'ArrowRight') programmaticSwipe('right');
+  else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    flipCurrent();
+  }
+});
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => {
+    if (e.target === m) m.classList.remove('show');
+  });
+});
+
+// =====================================================================
+// Init
+// =====================================================================
+(function init() {
+  loadState();
+  buildQueue();
+  renderStack();
+})();
+</script>
+</body>
+</html>
